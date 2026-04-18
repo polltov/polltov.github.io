@@ -10,11 +10,11 @@ const bg =
 ---
 
 <div class={`relative overflow-hidden border-y border-ink ${bg}`}>
-  <div class="marquee flex w-max gap-10 py-4 font-display text-2xl uppercase md:text-3xl">
+  <div class="marquee flex w-max items-center gap-10 py-4 font-display text-2xl uppercase leading-none md:text-3xl">
     {Array.from({ length: 6 }).map(() =>
       items.map((item) => (
         <span class="flex shrink-0 items-center gap-10">
-          <span>{item}</span>
+          <span class="leading-none">{item}</span>
           <span class="inline-block h-3 w-3 rotate-45 border-2 border-current"></span>
         </span>
       ))
