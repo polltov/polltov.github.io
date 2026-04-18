@@ -4,6 +4,10 @@ import { LEADS_API } from '../config/api';
 import { site } from '../config/site';
 
 const leadsApi = LEADS_API;
+const metricaId = site.metricaId;
+const metricaDashboard = metricaId
+  ? `https://metrika.yandex.ru/dashboard?id=${metricaId}`
+  : '';
 ---
 
 <!doctype html>
@@ -69,6 +73,47 @@ const leadsApi = LEADS_API;
 
       <!-- Leads view -->
       <section id="leads-card" class="mt-10 hidden">
+        <!-- KPI cards (lead-based; site traffic is in Metrica) -->
+        <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+          <div class="rounded-[20px] border border-ink bg-lime p-4 md:p-5">
+            <p class="label text-ink/70">Всего заявок</p>
+            <p id="kpi-total" class="mt-2 font-display text-3xl leading-none md:text-4xl">0</p>
+          </div>
+          <div class="rounded-[20px] border border-ink bg-violet p-4 md:p-5">
+            <p class="label text-ink/70">За 7 дней</p>
+            <p id="kpi-week" class="mt-2 font-display text-3xl leading-none md:text-4xl">0</p>
+          </div>
+          <div class="rounded-[20px] border border-ink bg-cream-warm p-4 md:p-5">
+            <p class="label text-ink/70">Сегодня</p>
+            <p id="kpi-today" class="mt-2 font-display text-3xl leading-none md:text-4xl">0</p>
+          </div>
+          <div class="rounded-[20px] border border-ink bg-ink p-4 text-cream md:p-5">
+            <p class="label text-cream/70">Топ услуга</p>
+            <p id="kpi-top" class="mt-2 font-display text-xl leading-tight md:text-2xl">—</p>
+          </div>
+        </div>
+
+        {metricaId ? (
+          <div class="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-ink bg-cream-warm p-4 md:p-5">
+            <div>
+              <p class="label text-ink/60">Посещения, источники, карты</p>
+              <p class="mt-1 text-sm text-ink/80">Полная аналитика сайта в Яндекс.Метрике</p>
+            </div>
+            <a
+              href={metricaDashboard}
+              target="_blank"
+              rel="noopener"
+              class="btn-ink"
+            >
+              Открыть Метрику
+            </a>
+          </div>
+        ) : (
+          <div class="mb-6 rounded-[20px] border border-dashed border-ink/40 p-4 text-sm text-ink/60 md:p-5">
+            Счётчик Яндекс.Метрики ещё не подключён — дай ID в <code class="font-mono">site.metricaId</code>, и блок станет активным.
+          </div>
+        )}
+
         <div class="mb-4 flex flex-wrap items-center gap-3 text-sm text-ink/70">
           <span id="leads-count">0 заявок</span>
           <input
@@ -179,7 +224,37 @@ const leadsApi = LEADS_API;
         }
       };
 
+      const renderKpi = () => {
+        const now = Date.now();
+        const weekMs = 7 * 24 * 3600 * 1000;
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const dayStartMs = startOfDay.getTime();
+        let week = 0, today = 0;
+        const svc = {};
+        for (const l of leads) {
+          const t = Date.parse(l.createdAt);
+          if (!isNaN(t)) {
+            if (now - t <= weekMs) week++;
+            if (t >= dayStartMs) today++;
+          }
+          if (l.service) svc[l.service] = (svc[l.service] || 0) + 1;
+        }
+        const total = leads.length;
+        let top = '—';
+        let topN = 0;
+        for (const [k, v] of Object.entries(svc)) {
+          if (v > topN) { topN = v; top = k; }
+        }
+        const q = (sel) => document.getElementById(sel);
+        q('kpi-total').textContent = String(total);
+        q('kpi-week').textContent = String(week);
+        q('kpi-today').textContent = String(today);
+        q('kpi-top').textContent = total === 0 ? '—' : top;
+      };
+
       const render = () => {
+        renderKpi();
         const q = (filter.value || '').trim().toLowerCase();
         const filtered = q
           ? leads.filter((l) => (l.name + ' ' + l.phone + ' ' + l.service).toLowerCase().includes(q))

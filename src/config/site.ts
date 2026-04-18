@@ -7,6 +7,7 @@ export const site = {
   email: 'PR@resprd.ru',
   phone: '+7 (921) 927-73-83',
   showreelVimeoId: '995793484',
+  metricaId: '108662078',
   tagline: 'Профессионально. Креативно. В срок.',
   utp: 'Конвертируем наш опыт в ваш результат',
   heroHeadline: {
