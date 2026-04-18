@@ -6,7 +6,7 @@ import { site } from '../config/site';
   <div class="mx-auto grid max-w-[1400px] gap-10 md:grid-cols-12 md:items-end">
     <!-- Massive logotype -->
     <div class="md:col-span-7">
-      <p class="label mb-6 md:mb-8">Видеопродакшн · СПб · с 2014</p>
+      <p class="label mb-6 md:mb-8">Видеопродакшн для бизнеса · СПб · с 2014</p>
       <h1 class="hero-letters relative text-[clamp(6.5rem,20vw,21rem)] text-ink">
         <span class="relative inline-block">
           <span class="relative z-10">RES</span>
@@ -33,10 +33,8 @@ import { site } from '../config/site';
         результат для бизнеса.
       </p>
       <div class="mt-8 flex flex-wrap items-center gap-3">
-        <a href="#works" class="btn-ink">Посмотреть работы</a>
-        <a href={site.telegram} target="_blank" rel="noopener" class="btn-outline">
-          Обсудить проект
-        </a>
+        <button type="button" data-lead-trigger class="btn-ink">Оставить заявку</button>
+        <a href="#works" class="btn-outline">Посмотреть работы</a>
       </div>
     </div>
 

@@ -117,7 +117,8 @@ const year = new Date().getFullYear();
           Обсудим&nbsp;ваш проект?
         </h3>
         <div class="mt-6 flex flex-wrap gap-3">
-          <a href={site.telegram} target="_blank" rel="noopener" class="btn-ink">
+          <button type="button" data-lead-trigger class="btn-ink">Оставить заявку</button>
+          <a href={site.telegram} target="_blank" rel="noopener" class="btn-outline">
             Telegram
           </a>
           <a href={`mailto:${site.email}`} class="btn-outline">Email</a>
@@ -141,6 +142,12 @@ const year = new Date().getFullYear();
           </li>
           <li>{site.city}</li>
         </ul>
+        <a
+          href="/privacy"
+          class="mt-5 inline-block text-sm text-ink/60 underline-offset-4 hover:text-ink hover:underline"
+        >
+          Политика конфиденциальности
+        </a>
       </div>
 
       <!-- column 3: legal -->

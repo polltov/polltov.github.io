@@ -1,0 +1,206 @@
+---
+import { services } from '../data/services';
+import { site } from '../config/site';
+
+const tgUser = site.telegram.replace('https://t.me/', '');
+---
+
+<dialog
+  id="lead-dialog"
+  class="lead-modal w-[min(92vw,640px)] rounded-[28px] border border-ink bg-cream p-0 text-ink"
+  aria-labelledby="lead-dialog-title"
+>
+  <form id="lead-form" class="relative p-6 md:p-8" novalidate>
+    <button
+      type="button"
+      data-lead-close
+      class="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-ink/60 text-ink transition-colors hover:bg-ink hover:text-cream"
+      aria-label="Закрыть"
+    >
+      <svg viewBox="0 0 24 24" class="h-4 w-4" aria-hidden="true">
+        <path
+          d="M6 6l12 12M18 6 6 18"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          fill="none"
+        />
+      </svg>
+    </button>
+
+    <p class="label text-ink/60">Оставить заявку</p>
+    <h2 id="lead-dialog-title" class="mt-2 font-display text-3xl leading-[0.95] md:text-4xl">
+      Расскажите о задаче
+    </h2>
+    <p class="mt-3 max-w-md text-sm text-ink/75 md:text-base">
+      Свяжемся в течение рабочего дня. Или напишите в{' '}
+      <a class="underline underline-offset-4 hover:text-ink" href={site.telegram} target="_blank" rel="noopener">Telegram</a>.
+    </p>
+
+    <div class="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-5">
+      <label class="block md:col-span-1">
+        <span class="label text-ink/70">Имя</span>
+        <input
+          name="name"
+          type="text"
+          required
+          autocomplete="name"
+          placeholder="Ваше имя"
+          class="mt-2 w-full rounded-xl border border-ink bg-transparent px-4 py-3 text-base text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-ink"
+        />
+      </label>
+
+      <label class="block md:col-span-1">
+        <span class="label text-ink/70">Телефон</span>
+        <input
+          id="lead-phone"
+          name="phone"
+          type="tel"
+          required
+          autocomplete="tel"
+          inputmode="tel"
+          placeholder="+7 (___) ___-__-__"
+          pattern="[+\d\s()\-]{7,}"
+          class="mt-2 w-full rounded-xl border border-ink bg-transparent px-4 py-3 text-base text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-ink"
+        />
+      </label>
+
+      <label class="block md:col-span-2">
+        <span class="label text-ink/70">Тип ролика</span>
+        <select
+          name="service"
+          required
+          class="mt-2 w-full appearance-none rounded-xl border border-ink bg-transparent px-4 py-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-ink"
+        >
+          <option value="" disabled selected>Выберите из списка</option>
+          {services.map((s) => (
+            <option value={s.title}>{s.title}</option>
+          ))}
+          <option value="Не знаю / обсудим">Ещё не решил — обсудим</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="mt-5 flex items-start gap-3 text-sm text-ink/80">
+      <input
+        name="consent"
+        type="checkbox"
+        required
+        class="mt-1 h-5 w-5 shrink-0 cursor-pointer accent-ink"
+      />
+      <span>
+        Я согласен на обработку персональных данных в соответствии с{' '}
+        <a href="/privacy" target="_blank" class="underline underline-offset-4 hover:text-ink">Политикой конфиденциальности</a>.
+      </span>
+    </label>
+
+    <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
+      <button type="submit" class="btn-ink">Отправить заявку</button>
+      <p id="lead-status" class="text-sm text-ink/60" role="status" aria-live="polite"></p>
+    </div>
+  </form>
+</dialog>
+
+<style is:global>
+  dialog.lead-modal {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    transform-origin: 50% 50%;
+  }
+  dialog.lead-modal[open] {
+    animation: leadPop 280ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  }
+  dialog.lead-modal::backdrop {
+    background: rgba(10, 10, 10, 0.55);
+    backdrop-filter: blur(4px);
+    animation: leadFade 220ms ease-out;
+  }
+  @keyframes leadPop {
+    from { transform: scale(0.82); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
+  @keyframes leadFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    dialog.lead-modal[open],
+    dialog.lead-modal::backdrop { animation: none; }
+  }
+</style>
+
+<script is:inline define:vars={{ tgUser }}>
+  const dialog = document.getElementById('lead-dialog');
+  const form = document.getElementById('lead-form');
+  const status = document.getElementById('lead-status');
+  const phone = document.getElementById('lead-phone');
+  if (dialog && form && status && phone) {
+    const setStatus = (text, tone) => {
+      status.textContent = text;
+      status.classList.remove('text-ink/60', 'text-ink', 'text-red-700');
+      status.classList.add(
+        tone === 'error' ? 'text-red-700' : tone === 'ok' ? 'text-ink' : 'text-ink/60',
+      );
+    };
+
+    document.querySelectorAll('[data-lead-trigger]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        setStatus('', 'muted');
+        dialog.showModal();
+      });
+    });
+
+    // Close: × button, Escape key handled by <dialog>, click on backdrop
+    dialog.querySelector('[data-lead-close]')?.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+
+    // Phone: prepend "+7 " when user starts typing with "9"
+    phone.addEventListener('input', () => {
+      const v = phone.value;
+      const trimmed = v.trimStart();
+      if (trimmed && !trimmed.startsWith('+') && trimmed.startsWith('9')) {
+        const caret = phone.selectionStart ?? v.length;
+        phone.value = '+7 ' + trimmed;
+        const newPos = caret + 3;
+        phone.setSelectionRange(newPos, newPos);
+      }
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const data = new FormData(form);
+      const name = String(data.get('name') || '').trim();
+      const ph = String(data.get('phone') || '').trim();
+      const service = String(data.get('service') || '').trim();
+      const consent = data.get('consent') === 'on';
+
+      if (!name || !ph || !service) {
+        setStatus('Заполните имя, телефон и тип ролика.', 'error');
+        return;
+      }
+      if (!consent) {
+        setStatus('Подтвердите согласие на обработку данных.', 'error');
+        return;
+      }
+
+      const lines = [
+        'Заявка с сайта RES.PROD',
+        '',
+        `Имя: ${name}`,
+        `Телефон: ${ph}`,
+        `Тип ролика: ${service}`,
+      ];
+      const text = encodeURIComponent(lines.join('\n'));
+      const url = `https://t.me/${tgUser}?text=${text}`;
+
+      setStatus('Открываем Telegram — подтвердите отправку.', 'ok');
+      window.open(url, '_blank', 'noopener');
+      form.reset();
+      setTimeout(() => dialog.close(), 900);
+    });
+  }
+</script>

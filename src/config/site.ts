@@ -5,8 +5,8 @@ export const site = {
   telegram: 'https://t.me/res_prod',
   vk: 'https://vk.com/res.prod',
   email: 'PR@resprd.ru',
-  phone: '+7 (995) 911-69-40',
-  showreelVimeoId: '76979871',
+  phone: '+7 (921) 927-73-83',
+  showreelVimeoId: '995793484',
   tagline: 'Профессионально. Креативно. В срок.',
   utp: 'Конвертируем наш опыт в ваш результат',
   heroHeadline: {
