@@ -11,17 +11,37 @@
   --color-violet-deep: #8779e8;
   --color-clay: #d8663e;
 
-  --font-display: 'Boldonse', 'Tanker', 'Cabinet Grotesk', serif;
+  --font-display: 'BrandDisplay', 'Boldonse', 'Tanker', serif;
   --font-body: 'General Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
+/* Boldonse covers Latin RES.PROD wordmark */
 @font-face {
   font-family: 'Boldonse';
   src: url('/fonts/Boldonse-Regular.woff2') format('woff2');
   font-display: swap;
   font-weight: 400;
   font-style: normal;
+}
+
+/* Brand display family: Boldonse for Latin, Unbounded for Cyrillic.
+   Browser picks per character via unicode-range. */
+@font-face {
+  font-family: 'BrandDisplay';
+  src: url('/fonts/Boldonse-Regular.woff2') format('woff2');
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
+  unicode-range: U+0000-007F, U+00A0-00FF, U+2000-206F, U+2013, U+2014, U+00AB, U+00BB;
+}
+@font-face {
+  font-family: 'BrandDisplay';
+  src: url('/fonts/Unbounded-Cyrillic-Black.woff2') format('woff2');
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
+  unicode-range: U+0400-04FF, U+0500-052F, U+2DE0-2DFF, U+A640-A69F, U+0301, U+2116;
 }
 
 @font-face {
