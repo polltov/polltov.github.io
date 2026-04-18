@@ -3,47 +3,44 @@ import { site } from '../config/site';
 ---
 
 <section class="relative overflow-hidden px-6 pt-14 pb-12 md:px-10 md:pt-20 md:pb-16">
-  <div class="mx-auto max-w-[1400px]">
-    <!-- Massive logotype, full width -->
-    <p class="label mb-10 md:mb-16">Видеопродакшн для бизнеса · СПб · с 2014</p>
-    <h1 class="hero-letters relative text-[clamp(4rem,14vw,11rem)] leading-[1.3] text-ink">
-      <span class="relative inline-block">
-        <span class="relative z-10">RES</span>
-        <!-- Signature curved bar through the letters (Ujjo-style) -->
-        <svg
-          viewBox="0 0 520 80"
-          preserveAspectRatio="none"
-          class="absolute left-[-4%] right-[-4%] top-[52%] z-20 h-[55%] w-[108%] -translate-y-1/2"
-          aria-hidden="true"
-        >
-          <path
-            d="M8 48 C 80 8, 180 76, 260 32 S 440 76, 512 28"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="14"
-            stroke-linecap="round"
-          />
-        </svg>
-      </span>
-      <span class="block text-ink">.prod</span>
-    </h1>
-
-    <div class="mt-10 grid gap-10 md:mt-14 md:grid-cols-12 md:items-start">
-      <!-- Description + CTAs -->
-      <div class="md:col-span-7">
-        <p class="max-w-xl text-base text-ink/80 md:text-lg">
-          Бутиковая студия видеопроизводства. Рекламные и имиджевые ролики, съёмки
-          мероприятий, прямые трансляции. От идеи до финального монтажа — измеримый
-          результат для бизнеса.
-        </p>
-        <div class="mt-8 flex flex-wrap items-center gap-3">
-          <button type="button" data-lead-trigger class="btn-ink">Оставить заявку</button>
-          <a href="#works" class="btn-outline">Посмотреть работы</a>
-        </div>
+  <div class="mx-auto grid max-w-[1400px] gap-10 md:grid-cols-12 md:items-start md:gap-12">
+    <!-- Left: label + wordmark + description + CTAs -->
+    <div class="md:col-span-7">
+      <p class="label mb-10 md:mb-14">Видеопродакшн для бизнеса · СПб · с 2014</p>
+      <h1 class="hero-letters relative text-[clamp(4rem,13vw,12rem)] leading-[1.3] text-ink">
+        <span class="relative inline-block">
+          <span class="relative z-10">RES</span>
+          <!-- Signature curved bar through the letters (Ujjo-style) -->
+          <svg
+            viewBox="0 0 520 80"
+            preserveAspectRatio="none"
+            class="absolute left-[-4%] right-[-4%] top-[52%] z-20 h-[55%] w-[108%] -translate-y-1/2"
+            aria-hidden="true"
+          >
+            <path
+              d="M8 48 C 80 8, 180 76, 260 32 S 440 76, 512 28"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="14"
+              stroke-linecap="round"
+            />
+          </svg>
+        </span>
+        <span class="block text-ink">.prod</span>
+      </h1>
+      <p class="mt-8 max-w-xl text-base text-ink/80 md:mt-10 md:text-lg">
+        Бутиковая студия видеопроизводства. Рекламные и имиджевые ролики, съёмки
+        мероприятий, прямые трансляции. От идеи до финального монтажа — измеримый
+        результат для бизнеса.
+      </p>
+      <div class="mt-8 flex flex-wrap items-center gap-3">
+        <button type="button" data-lead-trigger class="btn-ink">Оставить заявку</button>
+        <a href="#works" class="btn-outline">Посмотреть работы</a>
       </div>
+    </div>
 
-      <!-- Showreel card -->
-      <div class="md:col-span-5">
+    <!-- Right: showreel card + metrics -->
+    <div class="md:col-span-5">
       <div
         class="relative overflow-hidden rounded-[28px] border border-ink bg-lime p-6 md:p-8"
       >
@@ -95,7 +92,6 @@ import { site } from '../config/site';
           <p class="font-display text-2xl leading-none">24/7</p>
           <p class="label mt-2 text-ink/70">съёмки</p>
         </div>
-      </div>
       </div>
     </div>
   </div>
