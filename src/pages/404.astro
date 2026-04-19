@@ -1,0 +1,78 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { site } from '../config/site';
+---
+
+<Layout
+  title={`404 — страница не найдена · ${site.name}`}
+  description="Страница не найдена. Вернитесь на главную RES.PROD или напишите нам в Telegram."
+>
+  <section class="relative flex min-h-[70vh] items-center overflow-hidden px-5 py-16 md:px-8 md:py-24">
+    <div class="mx-auto grid w-full max-w-[1200px] gap-10 lg:grid-cols-12 lg:items-center lg:gap-12">
+      <!-- 404 wordmark with signature curve -->
+      <div class="lg:col-span-7">
+        <p class="label text-ink/60">Ошибка · 404</p>
+        <h1 class="mt-4 font-display text-[clamp(6rem,22vw,14rem)] leading-[0.9] tracking-tight text-ink">
+          <span class="relative inline-block">
+            <span class="relative z-10">404</span>
+            <svg
+              viewBox="0 0 520 80"
+              preserveAspectRatio="none"
+              class="pointer-events-none absolute left-[-4%] right-[-4%] top-[52%] z-20 h-[40%] w-[108%] -translate-y-1/2 text-ink"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 48 C 80 8, 180 76, 260 32 S 440 76, 512 28"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="14"
+                stroke-linecap="round"
+              />
+            </svg>
+          </span>
+        </h1>
+        <p class="mt-8 max-w-lg text-base text-ink/80 md:mt-10 md:text-lg">
+          Такой страницы на сайте нет. Возможно, ссылка устарела, или
+          я её сам удалил — пока <a href={site.telegram} target="_blank" rel="noopener" class="underline underline-offset-4 hover:no-underline">напишите нам в Telegram</a>, или возвращайтесь
+          на главную и посмотрите шоурил.
+        </p>
+
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href={import.meta.env.BASE_URL} class="btn-ink">На главную</a>
+          <a href={`${import.meta.env.BASE_URL}#works`.replace(/\/+/g, '/')} class="btn-outline">
+            Посмотреть работы
+          </a>
+          <button type="button" data-lead-trigger class="btn-outline">
+            Оставить заявку
+          </button>
+        </div>
+      </div>
+
+      <!-- Decorative sticker: lime card with hand sparkles -->
+      <div class="lg:col-span-5">
+        <div class="card-lime relative mx-auto w-full max-w-md rotate-[-2deg] p-6 md:p-8">
+          <div class="label text-ink/70">Куда пропала страница?</div>
+          <p class="mt-4 font-display text-3xl leading-[1.1] text-ink md:text-4xl">
+            Монтажёр убрал этот кадр.
+          </p>
+          <p class="mt-4 text-sm text-ink/75 md:text-base">
+            Иногда такое случается, когда материал ещё в работе или ссылка
+            приехала из старой версии сайта.
+          </p>
+          <svg
+            viewBox="0 0 40 40"
+            class="absolute right-5 top-5 h-8 w-8 text-ink/70"
+            aria-hidden="true"
+          >
+            <path
+              d="M20 2v12M20 26v12M2 20h12M26 20h12M7 7l8 8M25 25l8 8M33 7l-8 8M15 25l-8 8"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+</Layout>
