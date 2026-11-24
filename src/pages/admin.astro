@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import { LEADS_API } from '../config/api';
 import { site } from '../config/site';
+import { LEAD_STATUSES } from '../lib/lead-status';
 
 const apiOrigin = new URL(LEADS_API).origin;
 const csp = `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src ${apiOrigin}; base-uri 'none'; form-action 'none'`;
@@ -9,6 +10,7 @@ const metricaId = site.metricaId;
 const metricaDashboard = metricaId
   ? `https://metrika.yandex.ru/dashboard?id=${metricaId}`
   : '';
+const leadFilters = [{ id: 'all', filter: 'Все' }, ...LEAD_STATUSES];
 ---
 
 <!doctype html>
@@ -115,6 +117,16 @@ const metricaDashboard = metricaId
           </div>
         )}
 
+        <div id="lead-status-filters" role="group" aria-label="Фильтр по статусу" class="mb-4 flex flex-wrap gap-2" hidden>
+          {leadFilters.map(({ id, filter }) => (
+            <button type="button" class="lead-status-filter" data-status-filter={id} data-lead-tone={id} aria-pressed={id === 'all' ? 'true' : 'false'}>
+              {id !== 'all' && <span class="lead-status-dot" aria-hidden="true"></span>}
+              {filter}
+              <span class="lead-status-count" data-status-count>0</span>
+            </button>
+          ))}
+        </div>
+
         <div class="mb-4 flex flex-wrap items-center gap-3 text-sm text-ink/70">
           <p id="leads-count"></p>
           <label for="leads-filter" class="sr-only">Поиск заявок</label>
@@ -136,6 +148,7 @@ const metricaDashboard = metricaId
                 <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Имя</th>
                 <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Телефон</th>
                 <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Тип ролика</th>
+                <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Статус</th>
                 <th scope="col" role="columnheader" class="px-4 py-3 font-medium">IP</th>
                 <th scope="col" role="columnheader" class="px-4 py-3 text-right font-medium">Действия</th>
               </tr>
@@ -161,6 +174,64 @@ const metricaDashboard = metricaId
 </html>
 
 <style>
+  #leads-card :global([data-lead-tone="new"]) { --lead-tone: #506915; }
+  #leads-card :global([data-lead-tone="in_progress"]) { --lead-tone: #5740a5; }
+  #leads-card :global([data-lead-tone="rejected"]) { --lead-tone: #a12b3a; }
+  #leads-card :global([data-lead-tone="closed"]) { --lead-tone: #38614b; }
+
+  .lead-status-filter {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.85rem;
+    border: 1px solid color-mix(in srgb, var(--color-ink) 30%, transparent);
+    border-radius: 999px;
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .lead-status-filter:hover {
+    border-color: var(--color-ink);
+  }
+
+  .lead-status-filter[aria-pressed="true"] {
+    border-color: var(--color-ink);
+    background: var(--color-ink);
+    color: var(--color-cream);
+  }
+
+  .lead-status-dot {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--lead-tone);
+  }
+
+  .lead-status-filter[aria-pressed="true"] .lead-status-dot {
+    background: color-mix(in srgb, var(--lead-tone) 55%, white);
+  }
+
+  .lead-status-count {
+    color: color-mix(in srgb, currentColor 85%, transparent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  #leads-table :global(.lead-status-select) {
+    max-width: 100%;
+    min-height: 44px;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid color-mix(in srgb, var(--lead-tone) 55%, var(--color-cream));
+    border-radius: 0.65rem;
+    background: color-mix(in srgb, var(--lead-tone) 10%, var(--color-cream));
+    color: var(--color-ink);
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
   #leads-table :global(td) {
     padding: 0.55rem 1rem;
     overflow-wrap: anywhere;
@@ -171,7 +242,8 @@ const metricaDashboard = metricaId
   }
 
   button:disabled,
-  #leads-table :global(button:disabled) {
+  #leads-table :global(button:disabled),
+  #leads-table :global(select:disabled) {
     cursor: default;
     opacity: 0.5;
   }
@@ -218,7 +290,8 @@ const metricaDashboard = metricaId
       font-weight: 400;
     }
 
-    #leads-table :global(.lead-delete) {
+    #leads-table :global(.lead-delete),
+    #leads-table :global(.lead-status-select) {
       justify-self: start;
     }
   }

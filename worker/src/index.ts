@@ -1,10 +1,14 @@
+import { DEFAULT_LEAD_STATUS, isLeadStatus, type LeadStatus } from '../../src/lib/lead-status';
 import { normalizeRussianPhone } from '../../src/lib/phone';
 import { createAdminSession, hasAdminSession, revokeAdminSession, type AdminEnv } from './admin-session';
+import type { LeadStatusStore } from './lead-status-store';
 
 export { AdminSessions } from './admin-session';
+export { LeadStatusStore } from './lead-status-store';
 
 export interface Env extends AdminEnv {
   LEADS: KVNamespace;
+  LEAD_STATUS_STORE: DurableObjectNamespace<LeadStatusStore>;
   TG_BOT_TOKEN?: string;
   TG_CHAT_ID?: string;
 }
@@ -38,7 +42,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
   const allow = origin && ALLOWED_ORIGINS.has(origin) ? origin : 'https://res-prod.ru';
   return {
     'Access-Control-Allow-Origin': allow,
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
@@ -54,6 +58,20 @@ function json(obj: unknown, status: number, headers: Record<string, string>) {
 
 function leadKey(createdAt: string, id: string): string {
   return `${LEAD_PREFIX}${createdAt}:${id}`;
+}
+
+function requestedLeadKey(url: URL): string | null {
+  const id = url.searchParams.get('id') ?? '';
+  const createdAt = url.searchParams.get('createdAt') ?? '';
+  if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id) ||
+      !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(createdAt)) {
+    return null;
+  }
+  return leadKey(createdAt, id);
+}
+
+function leadStatuses(env: Env) {
+  return env.LEAD_STATUS_STORE.getByName('leads');
 }
 
 async function handleLogin(req: Request, env: Env, headers: Record<string, string>) {
@@ -134,8 +152,12 @@ async function handleList(url: URL, env: Env, headers: Record<string, string>) {
   const nextCursor = list.list_complete ? null : list.cursor;
   if (!list.keys.length) return json({ leads: [], cursor: nextCursor }, 200, headers);
 
-  const values = await env.LEADS.get(list.keys.map(({ name }) => name), 'text');
-  const leads: Lead[] = [];
+  const keys = list.keys.map(({ name }) => name);
+  const [values, statuses] = await Promise.all([
+    env.LEADS.get(keys, 'text'),
+    leadStatuses(env).getMany(keys),
+  ]);
+  const leads: Array<Lead & { status: LeadStatus }> = [];
   for (const [key, value] of values) {
     if (!value) continue;
     try {
@@ -143,7 +165,11 @@ async function handleList(url: URL, env: Env, headers: Record<string, string>) {
       if (lead && typeof lead.id === 'string' && typeof lead.createdAt === 'string' &&
           typeof lead.name === 'string' && typeof lead.phone === 'string' && typeof lead.service === 'string' &&
           leadKey(lead.createdAt, lead.id) === key) {
-        leads.push({ ...lead, ip: typeof lead.ip === 'string' ? lead.ip : undefined });
+        leads.push({
+          ...lead,
+          ip: typeof lead.ip === 'string' ? lead.ip : undefined,
+          status: statuses[key] ?? DEFAULT_LEAD_STATUS,
+        });
       }
     } catch {
       // A malformed record must not hide the rest of the batch.
@@ -152,14 +178,24 @@ async function handleList(url: URL, env: Env, headers: Record<string, string>) {
   return json({ leads, cursor: nextCursor }, 200, headers);
 }
 
-async function handleDelete(url: URL, env: Env, headers: Record<string, string>) {
-  const id = url.searchParams.get('id') ?? '';
-  const createdAt = url.searchParams.get('createdAt') ?? '';
-  if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id) ||
-      !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(createdAt)) {
-    return json({ ok: false, error: 'invalid lead key' }, 400, headers);
+async function handleStatus(req: Request, key: string, env: Env, headers: Record<string, string>) {
+  let body: { status?: unknown } | null;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ ok: false, error: 'invalid JSON' }, 400, headers);
   }
-  await env.LEADS.delete(leadKey(createdAt, id));
+  const status = body?.status;
+  if (!isLeadStatus(status)) return json({ ok: false, error: 'invalid status' }, 400, headers);
+  if (!await env.LEADS.get(key)) return json({ ok: false, error: 'lead not found' }, 404, headers);
+
+  await leadStatuses(env).set(key, status);
+  return json({ ok: true, status }, 200, headers);
+}
+
+async function handleDelete(key: string, env: Env, headers: Record<string, string>) {
+  await env.LEADS.delete(key);
+  await leadStatuses(env).clear(key);
   return json({ ok: true }, 200, headers);
 }
 
@@ -185,10 +221,13 @@ export default {
       return new Response(null, { status: 204, headers: adminHeaders });
     }
     const isList = url.pathname === '/api/leads' && req.method === 'GET';
-    const isDelete = url.pathname === '/api/lead' && req.method === 'DELETE';
-    if (isList || isDelete) {
+    const isLeadEdit = url.pathname === '/api/lead' && (req.method === 'DELETE' || req.method === 'PATCH');
+    if (isList || isLeadEdit) {
       if (!await hasAdminSession(req, env)) return json({ ok: false, error: 'unauthorized' }, 401, adminHeaders);
-      return isList ? handleList(url, env, adminHeaders) : handleDelete(url, env, adminHeaders);
+      if (isList) return handleList(url, env, adminHeaders);
+      const key = requestedLeadKey(url);
+      if (!key) return json({ ok: false, error: 'invalid lead key' }, 400, adminHeaders);
+      return req.method === 'PATCH' ? handleStatus(req, key, env, adminHeaders) : handleDelete(key, env, adminHeaders);
     }
     if (url.pathname === '/' || url.pathname === '/healthz') {
       return json({ ok: true, service: 'res-prod-leads' }, 200, headers);

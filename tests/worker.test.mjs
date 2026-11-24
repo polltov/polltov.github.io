@@ -82,3 +82,52 @@ test('validates phone input, lists every batch and can delete a lead from a late
   assert.equal(remaining.leads.length, 100);
   assert.equal(remaining.cursor, null);
 });
+
+test('defaults to new and persists each admin status without changing the lead record', async () => {
+  const sent = await post('/api/lead', {
+    name: 'Заявка со статусом', phone: '+7 (999) 000-02-14',
+    service: 'Презентационные ролики', consent: true, status: 'closed',
+  });
+  assert.equal(sent.status, 200);
+  const { id } = await sent.json();
+  const headers = await signIn();
+
+  async function fetchLead() {
+    let cursor = null;
+    do {
+      const query = cursor ? `?${new URLSearchParams({ cursor })}` : '';
+      const response = await worker.fetch(`/api/leads${query}`, { headers });
+      assert.equal(response.status, 200);
+      const batch = await response.json();
+      const lead = batch.leads.find((item) => item.id === id);
+      if (lead) return lead;
+      cursor = batch.cursor;
+    } while (cursor);
+  }
+
+  const initial = await fetchLead();
+  assert.equal(initial.status, 'new');
+  const endpoint = `/api/lead?${new URLSearchParams({ id, createdAt: initial.createdAt })}`;
+  const patch = (status, auth = headers) => worker.fetch(endpoint, {
+    method: 'PATCH', headers: { ...auth, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  });
+
+  const preflight = await worker.fetch(endpoint, { method: 'OPTIONS', headers: { Origin: 'https://res-prod.ru' } });
+  assert.match(preflight.headers.get('Access-Control-Allow-Methods'), /\bPATCH\b/);
+  assert.equal((await patch('closed', {})).status, 401);
+  assert.equal((await patch('unknown')).status, 400);
+  assert.deepEqual(await fetchLead(), initial);
+
+  for (const status of ['in_progress', 'rejected', 'closed', 'new']) {
+    const changed = await patch(status);
+    assert.equal(changed.status, 200);
+    assert.equal((await changed.json()).status, status);
+    assert.deepEqual(await fetchLead(), { ...initial, status });
+  }
+
+  assert.equal((await patch('closed')).status, 200);
+  assert.equal((await worker.fetch(endpoint, { method: 'DELETE', headers })).status, 200);
+  assert.equal((await patch('in_progress')).status, 404);
+  assert.equal(await fetchLead(), undefined);
+});

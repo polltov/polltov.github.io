@@ -11,9 +11,17 @@ id = "beaf9f1a1d1a464392fec83ba6cc81df"
 name = "ADMIN_SESSIONS"
 class_name = "AdminSessions"
 
+[[durable_objects.bindings]]
+name = "LEAD_STATUS_STORE"
+class_name = "LeadStatusStore"
+
 [[migrations]]
 tag = "admin-sessions-v1"
 new_sqlite_classes = ["AdminSessions"]
+
+[[migrations]]
+tag = "lead-statuses-v1"
+new_sqlite_classes = ["LeadStatusStore"]
 
 [[ratelimits]]
 name = "ADMIN_LOGIN_LIMIT"
