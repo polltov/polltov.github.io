@@ -1,7 +1,10 @@
-export interface Env {
+import { normalizeRussianPhone } from '../../src/lib/phone';
+import { createAdminSession, hasAdminSession, revokeAdminSession, type AdminEnv } from './admin-session';
+
+export { AdminSessions } from './admin-session';
+
+export interface Env extends AdminEnv {
   LEADS: KVNamespace;
-  ADMIN_USER: string;
-  ADMIN_PASS: string;
   TG_BOT_TOKEN?: string;
   TG_CHAT_ID?: string;
 }
@@ -16,6 +19,9 @@ type Lead = {
   origin?: string;
   ip?: string;
 };
+
+const LEAD_PREFIX = 'lead:';
+const LEAD_BATCH_SIZE = 100;
 
 const ALLOWED_ORIGINS = new Set([
   'https://res-prod.ru',
@@ -46,24 +52,24 @@ function json(obj: unknown, status: number, headers: Record<string, string>) {
   });
 }
 
-function basicAuthOk(req: Request, env: Env): boolean {
-  const h = req.headers.get('Authorization') || '';
-  if (!h.startsWith('Basic ')) return false;
+function leadKey(createdAt: string, id: string): string {
+  return `${LEAD_PREFIX}${createdAt}:${id}`;
+}
+
+async function handleLogin(req: Request, env: Env, headers: Record<string, string>) {
+  const key = req.headers.get('CF-Connecting-IP') ?? 'local';
+  const { success } = await env.ADMIN_LOGIN_LIMIT.limit({ key });
+  if (!success) return json({ ok: false, error: 'too many attempts' }, 429, { ...headers, 'Retry-After': '60' });
+
+  let body: { user?: unknown; pass?: unknown } | null;
   try {
-    const decoded = atob(h.slice(6));
-    const idx = decoded.indexOf(':');
-    if (idx < 0) return false;
-    const u = decoded.slice(0, idx);
-    const p = decoded.slice(idx + 1);
-    return (
-      u.length > 0 &&
-      p.length > 0 &&
-      u === env.ADMIN_USER &&
-      p === env.ADMIN_PASS
-    );
+    body = await req.json();
   } catch {
-    return false;
+    return json({ ok: false, error: 'invalid JSON' }, 400, headers);
   }
+
+  const session = await createAdminSession(body?.user, body?.pass, env);
+  return session ? json(session, 200, headers) : json({ ok: false, error: 'unauthorized' }, 401, headers);
 }
 
 async function handleLead(req: Request, env: Env, headers: Record<string, string>) {
@@ -75,12 +81,15 @@ async function handleLead(req: Request, env: Env, headers: Record<string, string
   }
 
   const name = String(body?.name ?? '').trim().slice(0, 200);
-  const phone = String(body?.phone ?? '').trim().slice(0, 50);
+  const phone = normalizeRussianPhone(body?.phone);
   const service = String(body?.service ?? '').trim().slice(0, 200);
   const consent = body?.consent === true;
 
-  if (!name || !phone || !service) {
+  if (!name || !service) {
     return json({ ok: false, error: 'missing fields' }, 400, headers);
+  }
+  if (!phone) {
+    return json({ ok: false, error: 'invalid phone' }, 400, headers);
   }
   if (!consent) {
     return json({ ok: false, error: 'consent required' }, 400, headers);
@@ -99,8 +108,7 @@ async function handleLead(req: Request, env: Env, headers: Record<string, string
     ip: req.headers.get('CF-Connecting-IP') || undefined,
   };
 
-  const key = `lead:${createdAt}:${id}`;
-  await env.LEADS.put(key, JSON.stringify(lead));
+  await env.LEADS.put(leadKey(createdAt, id), JSON.stringify(lead));
 
   if (env.TG_BOT_TOKEN && env.TG_CHAT_ID) {
     const text = [
@@ -120,44 +128,38 @@ async function handleLead(req: Request, env: Env, headers: Record<string, string
   return json({ ok: true, id }, 200, headers);
 }
 
-async function handleList(req: Request, env: Env, headers: Record<string, string>) {
-  if (!basicAuthOk(req, env)) {
-    return new Response('Unauthorized', {
-      status: 401,
-      headers: {
-        ...headers,
-        'WWW-Authenticate': 'Basic realm="RES.PROD admin", charset="UTF-8"',
-      },
-    });
-  }
+async function handleList(url: URL, env: Env, headers: Record<string, string>) {
+  const cursor = url.searchParams.get('cursor') || undefined;
+  const list = await env.LEADS.list({ prefix: LEAD_PREFIX, limit: LEAD_BATCH_SIZE, cursor });
+  const nextCursor = list.list_complete ? null : list.cursor;
+  if (!list.keys.length) return json({ leads: [], cursor: nextCursor }, 200, headers);
 
-  const list = await env.LEADS.list({ prefix: 'lead:', limit: 1000 });
+  const values = await env.LEADS.get(list.keys.map(({ name }) => name), 'text');
   const leads: Lead[] = [];
-  for (const k of list.keys) {
-    const v = await env.LEADS.get(k.name);
-    if (v) {
-      try {
-        leads.push(JSON.parse(v) as Lead);
-      } catch {
-        // skip malformed
+  for (const [key, value] of values) {
+    if (!value) continue;
+    try {
+      const lead: Lead | null = JSON.parse(value);
+      if (lead && typeof lead.id === 'string' && typeof lead.createdAt === 'string' &&
+          typeof lead.name === 'string' && typeof lead.phone === 'string' && typeof lead.service === 'string' &&
+          leadKey(lead.createdAt, lead.id) === key) {
+        leads.push({ ...lead, ip: typeof lead.ip === 'string' ? lead.ip : undefined });
       }
+    } catch {
+      // A malformed record must not hide the rest of the batch.
     }
   }
-  leads.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return json({ ok: true, leads }, 200, headers);
+  return json({ leads, cursor: nextCursor }, 200, headers);
 }
 
-async function handleDelete(req: Request, env: Env, headers: Record<string, string>) {
-  if (!basicAuthOk(req, env)) {
-    return new Response('Unauthorized', { status: 401, headers });
+async function handleDelete(url: URL, env: Env, headers: Record<string, string>) {
+  const id = url.searchParams.get('id') ?? '';
+  const createdAt = url.searchParams.get('createdAt') ?? '';
+  if (!/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id) ||
+      !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(createdAt)) {
+    return json({ ok: false, error: 'invalid lead key' }, 400, headers);
   }
-  const url = new URL(req.url);
-  const id = url.searchParams.get('id');
-  if (!id) return json({ ok: false, error: 'id required' }, 400, headers);
-  const list = await env.LEADS.list({ prefix: 'lead:' });
-  const key = list.keys.find((k) => k.name.endsWith(':' + id));
-  if (!key) return json({ ok: false, error: 'not found' }, 404, headers);
-  await env.LEADS.delete(key.name);
+  await env.LEADS.delete(leadKey(createdAt, id));
   return json({ ok: true }, 200, headers);
 }
 
@@ -166,6 +168,7 @@ export default {
     const url = new URL(req.url);
     const origin = req.headers.get('Origin');
     const headers = corsHeaders(origin);
+    const adminHeaders = { ...headers, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 
     if (req.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers });
@@ -174,11 +177,18 @@ export default {
     if (url.pathname === '/api/lead' && req.method === 'POST') {
       return handleLead(req, env, headers);
     }
-    if (url.pathname === '/api/leads' && req.method === 'GET') {
-      return handleList(req, env, headers);
+    if (url.pathname === '/api/admin/session' && req.method === 'POST') {
+      return handleLogin(req, env, adminHeaders);
     }
-    if (url.pathname === '/api/lead' && req.method === 'DELETE') {
-      return handleDelete(req, env, headers);
+    if (url.pathname === '/api/admin/session' && req.method === 'DELETE') {
+      await revokeAdminSession(req, env);
+      return new Response(null, { status: 204, headers: adminHeaders });
+    }
+    const isList = url.pathname === '/api/leads' && req.method === 'GET';
+    const isDelete = url.pathname === '/api/lead' && req.method === 'DELETE';
+    if (isList || isDelete) {
+      if (!await hasAdminSession(req, env)) return json({ ok: false, error: 'unauthorized' }, 401, adminHeaders);
+      return isList ? handleList(url, env, adminHeaders) : handleDelete(url, env, adminHeaders);
     }
     if (url.pathname === '/' || url.pathname === '/healthz') {
       return json({ ok: true, service: 'res-prod-leads' }, 200, headers);

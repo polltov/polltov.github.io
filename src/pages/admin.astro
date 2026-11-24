@@ -3,7 +3,8 @@ import '../styles/global.css';
 import { LEADS_API } from '../config/api';
 import { site } from '../config/site';
 
-const leadsApi = LEADS_API;
+const apiOrigin = new URL(LEADS_API).origin;
+const csp = `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src ${apiOrigin}; base-uri 'none'; form-action 'none'`;
 const metricaId = site.metricaId;
 const metricaDashboard = metricaId
   ? `https://metrika.yandex.ru/dashboard?id=${metricaId}`
@@ -16,35 +17,34 @@ const metricaDashboard = metricaId
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content={csp} />
     <link rel="preload" href="/fonts/GeneralSans-Medium.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/GeneralSans-Regular.woff2" as="font" type="font/woff2" crossorigin />
     <title>Админка — {site.name}</title>
   </head>
   <body class="bg-cream text-ink antialiased">
-    <main class="mx-auto max-w-[1280px] px-6 py-10 md:px-10 md:py-14">
-      <header class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p class="label text-ink/60">Админ-панель</p>
-          <h1 class="mt-2 font-display text-4xl leading-tight md:text-6xl">Заявки с сайта</h1>
-        </div>
-        <div class="flex items-center gap-3 text-sm text-ink/70">
-          <span id="admin-user-label"></span>
-          <button type="button" id="btn-refresh" class="btn-outline">Обновить</button>
-          <button type="button" id="btn-export" class="btn-outline">CSV</button>
-          <button type="button" id="btn-logout" class="btn-outline">Выйти</button>
+    <main class="mx-auto max-w-[1280px] px-5 py-8 md:px-10 md:py-14">
+      <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <h1 class="font-display text-[clamp(1.65rem,7.5vw,3.75rem)] leading-tight">Заявки с сайта</h1>
+        <div id="admin-actions" hidden class="flex min-w-0 flex-wrap items-center gap-2 text-sm text-ink/70 lg:justify-end">
+          <span id="admin-user-label" class="basis-full [overflow-wrap:anywhere] sm:basis-auto sm:pr-2"></span>
+          <button type="button" id="btn-refresh" class="btn-outline px-3.5">Обновить</button>
+          <button type="button" id="btn-export" class="btn-outline px-3.5">Скачать CSV</button>
+          <button type="button" id="btn-logout" class="btn-outline px-3.5">Выйти</button>
         </div>
       </header>
 
       <!-- Login -->
       <section id="login-card" class="mt-10 max-w-md rounded-[24px] border border-ink bg-cream-warm p-6 md:p-8">
         <h2 class="font-display text-2xl leading-tight md:text-3xl">Войти в админку</h2>
-        <p class="mt-2 text-sm text-ink/70">Укажите логин и пароль, выданные администратором.</p>
-        <form id="login-form" class="mt-6 space-y-4">
+        <form id="login-form" method="post" class="mt-6 space-y-4">
           <label class="block">
             <span class="label text-ink/70">Логин</span>
             <input
               name="user"
               type="text"
+              maxlength="200"
               autocomplete="username"
               required
               class="mt-2 w-full rounded-xl border border-ink bg-transparent px-4 py-3 text-base text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-ink"
@@ -55,6 +55,7 @@ const metricaDashboard = metricaId
             <input
               name="pass"
               type="password"
+              maxlength="1024"
               autocomplete="current-password"
               required
               class="mt-2 w-full rounded-xl border border-ink bg-transparent px-4 py-3 text-base text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-ink"
@@ -62,17 +63,17 @@ const metricaDashboard = metricaId
           </label>
           <label class="flex items-center gap-2 text-sm text-ink/80">
             <input id="remember" type="checkbox" checked class="h-4 w-4 accent-ink" />
-            Запомнить до закрытия браузера
+            Оставаться в системе при обновлении страницы
           </label>
-          <div class="flex items-center justify-between gap-3">
-            <button type="submit" class="btn-ink">Войти</button>
-            <p id="login-status" class="text-sm text-ink/60" role="status" aria-live="polite"></p>
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="btn-login" type="submit" class="btn-ink">Войти</button>
+            <p id="login-status" class="text-sm text-ink/70" role="status"></p>
           </div>
         </form>
       </section>
 
       <!-- Leads view -->
-      <section id="leads-card" class="mt-10 hidden">
+      <section id="leads-card" class="mt-8 md:mt-10" hidden aria-label="Заявки">
         <!-- KPI cards (lead-based; site traffic is in Metrica) -->
         <div class="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
           <div class="rounded-[20px] border border-ink bg-lime p-4 md:p-5">
@@ -89,7 +90,7 @@ const metricaDashboard = metricaId
           </div>
           <div class="rounded-[20px] border border-ink bg-ink p-4 text-cream md:p-5">
             <p class="label text-cream/70">Топ услуга</p>
-            <p id="kpi-top" class="mt-2 font-display text-xl leading-tight md:text-2xl">—</p>
+            <p id="kpi-top" class="mt-2 font-display text-base leading-tight [overflow-wrap:anywhere] [hyphens:auto] md:text-lg xl:text-xl">—</p>
           </div>
         </div>
 
@@ -115,261 +116,110 @@ const metricaDashboard = metricaId
         )}
 
         <div class="mb-4 flex flex-wrap items-center gap-3 text-sm text-ink/70">
-          <span id="leads-count">0 заявок</span>
+          <p id="leads-count"></p>
+          <label for="leads-filter" class="sr-only">Поиск заявок</label>
           <input
             id="leads-filter"
             type="search"
-            placeholder="Поиск по имени / телефону / услуге"
-            class="ml-auto w-full max-w-sm rounded-xl border border-ink bg-transparent px-4 py-2 text-sm text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-ink"
+            placeholder="Имя, телефон или услуга"
+            class="w-full rounded-xl border border-ink bg-transparent px-4 py-2.5 text-base text-ink placeholder:text-ink/65 focus:outline-none focus:ring-2 focus:ring-ink sm:ml-auto sm:max-w-sm"
           />
         </div>
 
-        <div class="overflow-x-auto rounded-[20px] border border-ink">
-          <table class="w-full min-w-[680px] text-left text-sm md:text-base">
-            <thead class="bg-ink text-cream">
-              <tr>
-                <th class="px-4 py-3 font-medium">Дата</th>
-                <th class="px-4 py-3 font-medium">Имя</th>
-                <th class="px-4 py-3 font-medium">Телефон</th>
-                <th class="px-4 py-3 font-medium">Тип ролика</th>
-                <th class="px-4 py-3 font-medium">IP</th>
-                <th class="px-4 py-3 font-medium text-right">⚙</th>
+        <p id="leads-status" class="mb-3 text-sm text-ink/70 empty:mb-0" role="status"></p>
+
+        <div id="leads-list" hidden class="overflow-hidden rounded-[20px] border border-ink">
+          <table id="leads-table" role="table" aria-label="Список заявок" class="w-full text-left text-sm md:text-base">
+            <thead role="rowgroup" class="bg-ink text-cream">
+              <tr role="row">
+                <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Дата</th>
+                <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Имя</th>
+                <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Телефон</th>
+                <th scope="col" role="columnheader" class="px-4 py-3 font-medium">Тип ролика</th>
+                <th scope="col" role="columnheader" class="px-4 py-3 font-medium">IP</th>
+                <th scope="col" role="columnheader" class="px-4 py-3 text-right font-medium">Действия</th>
               </tr>
             </thead>
-            <tbody id="leads-tbody" class="divide-y divide-ink/15"></tbody>
+            <tbody id="leads-tbody" role="rowgroup" class="divide-y divide-ink/15"></tbody>
           </table>
         </div>
 
-        <p id="leads-empty" class="mt-6 hidden text-center text-sm text-ink/60">Пока ни одной заявки.</p>
+        <p id="leads-empty" hidden class="mt-6 rounded-[20px] border border-ink/20 p-5 text-center text-sm text-ink/70" role="status"></p>
+
+        <nav id="leads-pagination" hidden aria-label="Страницы заявок" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <button type="button" id="leads-prev" class="btn-outline px-3.5">Назад</button>
+          <p id="leads-page" class="order-first basis-full text-sm text-ink/70 sm:order-0 sm:basis-auto" aria-live="polite"></p>
+          <button type="button" id="leads-next" class="btn-outline px-3.5">Дальше</button>
+        </nav>
       </section>
     </main>
 
-    <script is:inline define:vars={{ leadsApi }}>
-      const SESSION_KEY = 'resprod_admin_auth';
-      const loginCard = document.getElementById('login-card');
-      const leadsCard = document.getElementById('leads-card');
-      const loginForm = document.getElementById('login-form');
-      const loginStatus = document.getElementById('login-status');
-      const userLabel = document.getElementById('admin-user-label');
-      const tbody = document.getElementById('leads-tbody');
-      const countEl = document.getElementById('leads-count');
-      const emptyEl = document.getElementById('leads-empty');
-      const filter = document.getElementById('leads-filter');
-      const btnRefresh = document.getElementById('btn-refresh');
-      const btnExport = document.getElementById('btn-export');
-      const btnLogout = document.getElementById('btn-logout');
-
-      let creds = null;
-      let leads = [];
-
-      const readStoredCreds = () => {
-        try {
-          const s = sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
-          if (!s) return null;
-          const parsed = JSON.parse(s);
-          if (parsed && parsed.basic) return parsed;
-          return null;
-        } catch (_) { return null; }
-      };
-      const storeCreds = (basic, user, persist) => {
-        const payload = JSON.stringify({ basic, user });
-        (persist ? sessionStorage : sessionStorage).setItem(SESSION_KEY, payload);
-      };
-      const clearCreds = () => {
-        sessionStorage.removeItem(SESSION_KEY);
-        localStorage.removeItem(SESSION_KEY);
-      };
-
-      const showLogin = () => {
-        loginCard.classList.remove('hidden');
-        leadsCard.classList.add('hidden');
-        userLabel.textContent = '';
-      };
-      const showLeads = () => {
-        loginCard.classList.add('hidden');
-        leadsCard.classList.remove('hidden');
-        if (creds && creds.user) userLabel.textContent = creds.user + ' · ';
-      };
-
-      const formatDate = (iso) => {
-        try {
-          const d = new Date(iso);
-          return d.toLocaleString('ru-RU', {
-            day: '2-digit', month: '2-digit', year: 'numeric',
-            hour: '2-digit', minute: '2-digit',
-          });
-        } catch (_) { return iso; }
-      };
-
-      const fetchLeads = async () => {
-        if (!creds) return;
-        try {
-          const res = await fetch(leadsApi + '/api/leads', {
-            headers: { Authorization: 'Basic ' + creds.basic },
-          });
-          if (res.status === 401) {
-            clearCreds();
-            creds = null;
-            loginStatus.textContent = 'Сессия истекла, войдите снова.';
-            loginStatus.classList.add('text-red-700');
-            showLogin();
-            return;
-          }
-          if (!res.ok) throw new Error('http ' + res.status);
-          const data = await res.json();
-          leads = Array.isArray(data.leads) ? data.leads : [];
-          render();
-        } catch (e) {
-          countEl.textContent = 'Ошибка загрузки: ' + String(e);
-        }
-      };
-
-      const renderKpi = () => {
-        const now = Date.now();
-        const weekMs = 7 * 24 * 3600 * 1000;
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const dayStartMs = startOfDay.getTime();
-        let week = 0, today = 0;
-        const svc = {};
-        for (const l of leads) {
-          const t = Date.parse(l.createdAt);
-          if (!isNaN(t)) {
-            if (now - t <= weekMs) week++;
-            if (t >= dayStartMs) today++;
-          }
-          if (l.service) svc[l.service] = (svc[l.service] || 0) + 1;
-        }
-        const total = leads.length;
-        let top = '—';
-        let topN = 0;
-        for (const [k, v] of Object.entries(svc)) {
-          if (v > topN) { topN = v; top = k; }
-        }
-        const q = (sel) => document.getElementById(sel);
-        q('kpi-total').textContent = String(total);
-        q('kpi-week').textContent = String(week);
-        q('kpi-today').textContent = String(today);
-        q('kpi-top').textContent = total === 0 ? '—' : top;
-      };
-
-      const render = () => {
-        renderKpi();
-        const q = (filter.value || '').trim().toLowerCase();
-        const filtered = q
-          ? leads.filter((l) => (l.name + ' ' + l.phone + ' ' + l.service).toLowerCase().includes(q))
-          : leads;
-        countEl.textContent = filtered.length + ' из ' + leads.length + ' заявок';
-        tbody.innerHTML = '';
-        if (!filtered.length) {
-          emptyEl.classList.remove('hidden');
-          return;
-        }
-        emptyEl.classList.add('hidden');
-        for (const l of filtered) {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-lime/20';
-          tr.innerHTML = [
-            '<td class="px-4 py-3 text-ink/70">' + formatDate(l.createdAt) + '</td>',
-            '<td class="px-4 py-3 font-medium">' + escape(l.name) + '</td>',
-            '<td class="px-4 py-3"><a class="underline-offset-4 hover:underline" href="tel:' + escape(l.phone) + '">' + escape(l.phone) + '</a></td>',
-            '<td class="px-4 py-3">' + escape(l.service) + '</td>',
-            '<td class="px-4 py-3 text-xs text-ink/50">' + escape(l.ip || '—') + '</td>',
-            '<td class="px-4 py-3 text-right"><button type="button" data-del="' + escape(l.id) + '" class="text-xs text-ink/50 hover:text-red-700">удалить</button></td>',
-          ].join('');
-          tbody.appendChild(tr);
-        }
-      };
-
-      const escape = (s) => String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-      const exportCsv = () => {
-        const rows = [['createdAt', 'name', 'phone', 'service', 'ip', 'id']];
-        for (const l of leads) rows.push([l.createdAt, l.name, l.phone, l.service, l.ip || '', l.id]);
-        const csv = rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
-        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'leads-' + new Date().toISOString().slice(0, 10) + '.csv';
-        a.click();
-        URL.revokeObjectURL(a.href);
-      };
-
-      const deleteLead = async (id) => {
-        if (!creds) return;
-        if (!confirm('Удалить заявку?')) return;
-        try {
-          const res = await fetch(leadsApi + '/api/lead?id=' + encodeURIComponent(id), {
-            method: 'DELETE',
-            headers: { Authorization: 'Basic ' + creds.basic },
-          });
-          if (!res.ok) throw new Error('http ' + res.status);
-          leads = leads.filter((l) => l.id !== id);
-          render();
-        } catch (e) {
-          alert('Не удалось удалить: ' + e);
-        }
-      };
-
-      loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        loginStatus.textContent = '';
-        loginStatus.classList.remove('text-red-700');
-        const fd = new FormData(loginForm);
-        const user = String(fd.get('user') || '').trim();
-        const pass = String(fd.get('pass') || '');
-        if (!user || !pass) return;
-        const basic = btoa(user + ':' + pass);
-        try {
-          const res = await fetch(leadsApi + '/api/leads', {
-            headers: { Authorization: 'Basic ' + basic },
-          });
-          if (res.status === 401) {
-            loginStatus.textContent = 'Неверный логин или пароль';
-            loginStatus.classList.add('text-red-700');
-            return;
-          }
-          if (!res.ok) throw new Error('http ' + res.status);
-          creds = { basic, user };
-          storeCreds(basic, user, !!document.getElementById('remember').checked);
-          const data = await res.json();
-          leads = Array.isArray(data.leads) ? data.leads : [];
-          showLeads();
-          render();
-        } catch (err) {
-          loginStatus.textContent = 'Сервер недоступен: ' + err;
-          loginStatus.classList.add('text-red-700');
-        }
-      });
-
-      tbody.addEventListener('click', (e) => {
-        const t = e.target;
-        if (t instanceof HTMLElement) {
-          const id = t.getAttribute('data-del');
-          if (id) deleteLead(id);
-        }
-      });
-
-      filter.addEventListener('input', render);
-      btnRefresh.addEventListener('click', fetchLeads);
-      btnExport.addEventListener('click', exportCsv);
-      btnLogout.addEventListener('click', () => {
-        clearCreds();
-        creds = null;
-        showLogin();
-      });
-
-      // auto-login from stored creds
-      const stored = readStoredCreds();
-      if (stored && stored.basic) {
-        creds = stored;
-        showLeads();
-        fetchLeads();
-      } else {
-        showLogin();
-      }
+    <script>
+      import '../scripts/admin';
     </script>
   </body>
 </html>
+
+<style>
+  #leads-table :global(td) {
+    padding: 0.55rem 1rem;
+    overflow-wrap: anywhere;
+  }
+
+  #leads-table :global(.lead-cell-label) {
+    display: none;
+  }
+
+  button:disabled,
+  #leads-table :global(button:disabled) {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 767px) {
+    #admin-actions .btn-outline {
+      min-height: 44px;
+      padding-inline: 0.7rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+    }
+
+    #leads-table,
+    #leads-table tbody,
+    #leads-table :global(tr) {
+      display: block;
+    }
+
+    #leads-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    #leads-table :global(tbody tr) {
+      padding: 0.75rem 1rem;
+    }
+
+    #leads-table :global(td) {
+      display: grid;
+      grid-template-columns: minmax(4.25rem, 28%) minmax(0, 1fr);
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.3rem 0;
+    }
+
+    #leads-table :global(.lead-cell-label) {
+      display: block;
+      color: color-mix(in srgb, var(--color-ink) 70%, transparent);
+      font-size: 0.75rem;
+      font-weight: 400;
+    }
+
+    #leads-table :global(.lead-delete) {
+      justify-self: start;
+    }
+  }
+</style>

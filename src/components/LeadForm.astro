@@ -1,10 +1,6 @@
 ---
 import { services } from '../data/services';
 import { site } from '../config/site';
-import { LEADS_API } from '../config/api';
-
-const tgUser = site.telegram.replace('https://t.me/', '');
-const leadsApi = LEADS_API;
 ---
 
 <dialog
@@ -62,7 +58,7 @@ const leadsApi = LEADS_API;
           autocomplete="tel"
           inputmode="tel"
           placeholder="+7 (___) ___-__-__"
-          maxlength="18"
+          maxlength="64"
           pattern="\+7 \(\d{3}\) \d{3}-\d{2}-\d{2}"
           title="Введите 10 цифр номера — форматирование появится автоматически"
           class="mt-2 w-full rounded-xl border border-ink bg-transparent px-4 py-3 text-base text-ink placeholder:text-ink/40 focus:outline-none focus:ring-2 focus:ring-ink"
@@ -134,13 +130,18 @@ const leadsApi = LEADS_API;
   }
 </style>
 
-<script is:inline define:vars={{ tgUser, leadsApi }}>
+<script>
+  import { LEADS_API } from '../config/api';
+  import { site } from '../config/site';
+  import { formatRussianPhoneInput, normalizeRussianPhone, phoneDigits } from '../lib/phone';
+
+  const tgUser = site.telegram.replace('https://t.me/', '');
   const dialog = document.getElementById('lead-dialog');
   const form = document.getElementById('lead-form');
   const status = document.getElementById('lead-status');
   const phone = document.getElementById('lead-phone');
-  if (dialog && form && status && phone) {
-    const setStatus = (text, tone) => {
+  if (dialog instanceof HTMLDialogElement && form instanceof HTMLFormElement && status && phone instanceof HTMLInputElement) {
+    const setStatus = (text: string, tone: 'muted' | 'error' | 'ok') => {
       status.textContent = text;
       status.classList.remove('text-ink/60', 'text-ink', 'text-red-700');
       status.classList.add(
@@ -148,8 +149,8 @@ const leadsApi = LEADS_API;
       );
     };
 
-    const serviceSelect = form.querySelector('select[name="service"]');
-    const openDialog = (el) => {
+    const serviceSelect = form.querySelector<HTMLSelectElement>('select[name="service"]');
+    const openDialog = (el: Element) => {
       setStatus('', 'muted');
       const preset = el && el.getAttribute('data-lead-service');
       if (serviceSelect && preset) {
@@ -158,7 +159,7 @@ const leadsApi = LEADS_API;
       }
       dialog.showModal();
     };
-    document.querySelectorAll('[data-lead-trigger]').forEach((btn) => {
+    document.querySelectorAll<HTMLElement>('[data-lead-trigger]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         openDialog(btn);
@@ -177,60 +178,38 @@ const leadsApi = LEADS_API;
       if (e.target === dialog) dialog.close();
     });
 
-    // Phone mask: force Russian "+7 (XXX) XXX-XX-XX", max 11 digits.
-    // On every input event strip non-digits, normalise the leading
-    // 8/9/etc into 7, clamp to 11 digits, reformat and keep the caret
-    // glued to the end (simple + reliable for a linear left-to-right mask).
-    const formatRu = (digits) => {
-      if (!digits.length) return '';
-      let out = '+' + digits[0];
-      if (digits.length > 1) out += ' (' + digits.slice(1, 4);
-      if (digits.length >= 4) out += ')';
-      if (digits.length > 4) out += ' ' + digits.slice(4, 7);
-      if (digits.length > 7) out += '-' + digits.slice(7, 9);
-      if (digits.length > 9) out += '-' + digits.slice(9, 11);
-      return out;
-    };
-    const normalizeDigits = (raw) => {
-      let d = String(raw || '').replace(/\D/g, '');
-      if (d.startsWith('8')) d = '7' + d.slice(1);
-      else if (d.length && !d.startsWith('7')) d = '7' + d;
-      return d.slice(0, 11);
-    };
     let lastDigits = '';
-    const paintPhone = (e) => {
-      let digits = normalizeDigits(phone.value);
-      const deleting =
-        e && (e.inputType === 'deleteContentBackward' ||
-              e.inputType === 'deleteContentForward' ||
-              e.inputType === 'deleteByCut');
-      // If user hit backspace on a separator, digit string didn't shrink
-      // naturally — drop one manually so the mask can actually collapse.
-      if (deleting && digits === lastDigits && digits.length > 0) {
-        digits = digits.slice(0, -1);
-      }
-      // Edge case: user backspaced the whole "+7 " prefix — don't auto-
-      // force a leading 7 back in, leave the field truly empty.
-      if (deleting && digits === '7' && phone.value.replace(/\D/g, '') === '') {
-        digits = '';
-      }
-      lastDigits = digits;
-      phone.value = formatRu(digits);
-      const end = phone.value.length;
-      phone.setSelectionRange(end, end);
+    const setPhone = (value: string) => {
+      lastDigits = phoneDigits(value);
+      phone.value = value;
+      phone.setSelectionRange(value.length, value.length);
     };
-    phone.addEventListener('input', paintPhone);
-    phone.addEventListener('paste', () => setTimeout(() => paintPhone(null), 0));
-    phone.addEventListener('focus', () => {
-      if (!phone.value) {
-        phone.value = '+7 ';
-        lastDigits = '7';
-        const end = phone.value.length;
-        phone.setSelectionRange(end, end);
+    phone.addEventListener('input', (event) => {
+      const input = event instanceof InputEvent ? event : null;
+      const replacement = normalizeRussianPhone(input?.data);
+      if (replacement) {
+        setPhone(replacement);
+        return;
       }
+
+      let value = phone.value;
+      // Removing a mask separator should move one digit back.
+      if (input?.inputType === 'deleteContentBackward' && lastDigits && phoneDigits(value) === lastDigits) {
+        value = `+${lastDigits.slice(0, -1)}`;
+      }
+      setPhone(formatRussianPhoneInput(value));
+    });
+    phone.addEventListener('paste', (event) => {
+      const replacement = normalizeRussianPhone(event.clipboardData?.getData('text/plain'));
+      if (!replacement) return;
+      event.preventDefault();
+      setPhone(replacement);
+    });
+    phone.addEventListener('focus', () => {
+      if (!phone.value) setPhone('+7 ');
     });
 
-    const openTelegramFallback = (name, ph, service) => {
+    const openTelegramFallback = (name: string, ph: string, service: string) => {
       const lines = [
         'Заявка с сайта RES.PROD',
         '',
@@ -246,12 +225,17 @@ const leadsApi = LEADS_API;
       e.preventDefault();
       const data = new FormData(form);
       const name = String(data.get('name') || '').trim();
-      const ph = String(data.get('phone') || '').trim();
+      const ph = normalizeRussianPhone(data.get('phone'));
       const service = String(data.get('service') || '').trim();
       const consent = data.get('consent') === 'on';
 
-      if (!name || !ph || !service) {
+      if (!name || !service) {
         setStatus('Заполните имя, телефон и тип ролика.', 'error');
+        return;
+      }
+      if (!ph) {
+        setStatus('Введите полный номер в формате +7 (999) 000-00-00.', 'error');
+        phone.focus();
         return;
       }
       if (!consent) {
@@ -267,7 +251,7 @@ const leadsApi = LEADS_API;
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 7000);
-        const res = await fetch(`${leadsApi}/api/lead`, {
+        const res = await fetch(`${LEADS_API}/api/lead`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, phone: ph, service, consent: true }),
